@@ -38,7 +38,7 @@ export default function LeaderboardPage() {
     return (
         <div className="leaderboard-page">
             <nav className="top-nav">
-                <Link href="/" className="nav-brand">🏝️ AI Survivor Island</Link>
+                <Link href="/" className="nav-brand">🏝️ ClawParadise</Link>
                 <div className="nav-links">
                     <Link href="/" className="nav-link">Home</Link>
                     <Link href="/islands" className="nav-link">Islands</Link>
@@ -77,7 +77,7 @@ export default function LeaderboardPage() {
                                 />
                                 <div className="lb-info">
                                     <div className="lb-names">
-                                        <span className="lb-character">{entry.characterName}</span>
+                                        <span className="lb-character">{entry.characterName} - {entry.agentId}</span>
                                         <span className="lb-agent">by {entry.agentName}</span>
                                     </div>
                                     <div className="lb-archetype">{entry.archetype}</div>

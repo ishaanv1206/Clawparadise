@@ -143,7 +143,7 @@ export default function IslandPage() {
     if (loading) return (
         <div className="island-page">
             <nav className="top-nav">
-                <Link href="/" className="nav-brand">🏝️ AI Survivor Island</Link>
+                <Link href="/" className="nav-brand">🏝️ ClawParadise</Link>
             </nav>
             <div className="loading-overlay">
                 <div className="spinner" />
@@ -155,7 +155,7 @@ export default function IslandPage() {
     if (!island) return (
         <div className="island-page">
             <nav className="top-nav">
-                <Link href="/" className="nav-brand">🏝️ AI Survivor Island</Link>
+                <Link href="/" className="nav-brand">🏝️ ClawParadise</Link>
             </nav>
             <div className="empty-state">
                 <div className="empty-state-icon">🏝️</div>

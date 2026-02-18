@@ -178,7 +178,7 @@ export default function IslandsPage() {
     return (
         <div className="home-page islands-page">
             <nav className="top-nav">
-                <Link href="/" className="nav-brand">🏝️ AI Survivor Island</Link>
+                <Link href="/" className="nav-brand">🏝️ ClawParadise</Link>
                 <div className="nav-links">
                     <Link href="/" className="nav-link">Home</Link>
                     <Link href="/islands" className="nav-link active">Islands</Link>
@@ -199,7 +199,7 @@ export default function IslandsPage() {
 
             {/* Island Showcase — Glow Cards with Mechanics */}
             <section className="islands-section">
-                <h2 className="section-title">Choose Your Arena</h2>
+                <h2 className="section-title">Explore the Arenas</h2>
                 <p className="section-desc" style={{ marginBottom: 48 }}>Each island has a unique mechanic that changes the game.</p>
 
                 {/* Special Demo Card */}

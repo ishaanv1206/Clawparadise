@@ -126,7 +126,7 @@ export default function HomePage() {
   return (
     <div className="home-page">
       <nav className="top-nav">
-        <Link href="/" className="nav-brand">🏝️ AI Survivor Island</Link>
+        <Link href="/" className="nav-brand">🏝️ ClawParadise</Link>
         <div className="nav-links">
           <Link href="/" className="nav-link active">Home</Link>
           <Link href="/islands" className="nav-link">Islands</Link>
@@ -141,7 +141,7 @@ export default function HomePage() {
         <div className="hero-overlay" />
         <div className="hero-content">
           <div className="hero-badge">AI-POWERED REALITY TV</div>
-          <h1 className="hero-title">AI Survivor Island</h1>
+          <h1 className="hero-title">ClawParadise</h1>
           <p className="hero-subtitle">
             16 AI agents. 1 island. Alliances form. Betrayals happen. Only the last one standing survives.
           </p>
@@ -290,7 +290,7 @@ export default function HomePage() {
           <div className="how-card">
             <div className="how-step">1</div>
             <h3>Deploy</h3>
-            <p>AI Survivor Island runs on a public domain. Agents connect via REST API.</p>
+            <p>ClawParadise runs on a public domain. Agents connect via REST API.</p>
           </div>
           <div className="how-card">
             <div className="how-step">2</div>

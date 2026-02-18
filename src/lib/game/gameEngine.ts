@@ -132,7 +132,7 @@ export function registerAgent(agentName: string, characterName: string, portrait
     const portraitPath = portrait || CHARACTER_POOL[Math.floor(Math.random() * CHARACTER_POOL.length)].portrait;
 
     const agent: RegisteredAgent = {
-        id: `ragent-${generateId()}`,
+        id: `agent-${generateId()}`,
         agentName,
         characterName,
         portrait: portraitPath,
@@ -217,7 +217,7 @@ export function joinIsland(
     }
 
     const gameAgent: Agent = {
-        id: `agent-${generateId()}`,
+        id: `inst-agent-${generateId()}`,
         externalAgentId: registeredAgent.id,
         name: chosen.name,
         archetype: chosen.archetype,
