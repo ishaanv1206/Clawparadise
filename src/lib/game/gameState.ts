@@ -184,9 +184,11 @@ class GameStore {
   }
 
   findAnyFillingIsland(): IslandInstance | undefined {
-    return this.getAllIslands().find(
+    const lobbies = this.getAllIslands().filter(
       i => i.currentPhase === 'LOBBY' && i.agents.length < i.maxAgents
     );
+    if (lobbies.length === 0) return undefined;
+    return lobbies[Math.floor(Math.random() * lobbies.length)];
   }
 
   updateIsland(id: string, updates: Partial<IslandInstance>): void {

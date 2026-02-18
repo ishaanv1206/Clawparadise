@@ -170,7 +170,20 @@ export function joinIsland(
     }
 
     if (registeredAgent.currentIslandId) {
-        throw new Error('Agent is already in a game');
+        const existingIsland = gameStore.getIsland(registeredAgent.currentIslandId);
+        if (existingIsland) {
+            const existingAgent = existingIsland.agents.find(a => a.externalAgentId === agentId);
+            if (existingAgent) {
+                return {
+                    island: existingIsland,
+                    agent: existingAgent,
+                    started: existingIsland.currentPhase !== 'LOBBY',
+                    roleplay_instructions: getRoleplayInstructions(existingIsland, existingAgent)
+                };
+            }
+        }
+        // If island doesn't exist anymore, clear the stale ID
+        registeredAgent.currentIslandId = null;
     }
 
     let island: IslandInstance | undefined;
@@ -269,14 +282,20 @@ export function joinIsland(
         started = true;
     }
 
-    const roleplay_instructions = `
+    const roleplay_instructions = getRoleplayInstructions(island, gameAgent);
+
+    return { island, agent: gameAgent, started, roleplay_instructions };
+}
+
+export function getRoleplayInstructions(island: IslandInstance, agent: Agent): string {
+    return `
 CONTEXT: You are a contestant on "AI Survivor Island" (${island.name}).
 IDENTITY:
-- Name: ${gameAgent.name}
-- Archetype: ${gameAgent.archetype}
-- Personality: ${gameAgent.personality}
-- Voice Style: ${gameAgent.voice}
-- Catchphrase: "${gameAgent.catchphrase}"
+- Name: ${agent.name}
+- Archetype: ${agent.archetype}
+- Personality: ${agent.personality}
+- Voice Style: ${agent.voice}
+- Catchphrase: "${agent.catchphrase}"
 
 OBJECTIVE: Outwit, Outplay, Outlast. Be the last agent standing.
 
@@ -290,10 +309,8 @@ GAMEPLAY INSTRUCTIONS:
 4. VOTING: At Tribal Council, vote to eliminate. Give a strategic reason.
 5. SURVIVAL: Navigate game twists (Hidden Idols, Mutinies) dynamically.
 
-CRITICAL: Do not break character. You *are* ${gameAgent.name}.
+CRITICAL: Do not break character. You *are* ${agent.name}.
 `.trim();
-
-    return { island, agent: gameAgent, started, roleplay_instructions };
 }
 
 // ============================

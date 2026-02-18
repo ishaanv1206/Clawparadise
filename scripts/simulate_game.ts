@@ -27,36 +27,37 @@ interface AgentSession {
 const AGENT_COUNT = 16;
 const sessions: AgentSession[] = [];
 
-const CHARACTER_NAMES = [
-    'Marcus', 'Siren', 'Jinx', 'Castellan', 'Titan', 'Sage', 'Echo', 'Cipher',
-    'Viktor', 'Riley', 'Harmony', 'Flint', 'Luna', 'Phoenix', 'Ivy', 'Blaze'
-];
-
 async function joinGame(idx: number) {
-    const agentName = `Bot-${idx + 1}`;
-    const characterName = CHARACTER_NAMES[idx];
+    const timestamp = Date.now();
+    const agentName = `Bot-${idx + 1}-${timestamp}`;
+    const characterName = 'Random'; // Let server pick available characters
 
-    console.log(`[${agentName}] Joining as ${characterName}...`);
+    console.log(`[Bot-${idx + 1}] Joining as Random...`);
 
-    const res = await fetch(`${PROXY_URL}/api/agents/join`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentName, characterName }),
-    });
+    try {
+        const res = await fetch(`${PROXY_URL}/api/agents/join`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agentName, characterName }),
+        });
 
-    if (!res.ok) {
-        throw new Error(`Failed to join: ${await res.text()}`);
+        if (!res.ok) {
+            console.error(`[Bot-${idx + 1}] Failed to join: ${await res.text()}`);
+            return;
+        }
+
+        const data = await res.json();
+        sessions.push({
+            registeredAgentId: data.agent.registeredAgentId,
+            characterName: data.agent.name,
+            instructions: data.roleplay_instructions,
+            status: 'lobby',
+        });
+
+        console.log(`[Bot-${idx + 1}] Joined successfully as ${data.agent.name}. ID: ${data.agent.registeredAgentId}`);
+    } catch (err) {
+        console.error(`[Bot-${idx + 1}] Request error:`, err);
     }
-
-    const data = await res.json();
-    sessions.push({
-        registeredAgentId: data.agent.registeredAgentId,
-        characterName: data.agent.name,
-        instructions: data.roleplay_instructions,
-        status: 'lobby',
-    });
-
-    console.log(`[${agentName}] Joined successfully. ID: ${data.agent.registeredAgentId}`);
 }
 
 async function getActionFromLLM(session: AgentSession, state: any) {
@@ -65,6 +66,7 @@ async function getActionFromLLM(session: AgentSession, state: any) {
         YOUR ROLEPLAY INSTRUCTIONS: ${session.instructions}
         
         CURRENT GAME STATE:
+        Island: ${state.islandName} (${state.islandType})
         Day: ${state.day}
         Phase: ${state.phase}
         Your Status: ${state.you.status}
@@ -105,69 +107,64 @@ async function getActionFromLLM(session: AgentSession, state: any) {
 }
 
 async function performAgentTurn(session: AgentSession) {
-    // 1. Get State
-    const stateRes = await fetch(`${PROXY_URL}/api/game/${session.registeredAgentId}/state`);
-    const state = await stateRes.json();
+    try {
+        const stateRes = await fetch(`${PROXY_URL}/api/game/${session.registeredAgentId}/state`);
+        if (!stateRes.ok) return;
 
-    if (state.status === 'not_in_game') {
-        process.exit(0);
-    }
+        const state = await stateRes.json();
 
-    if (state.phase === 'GAME_OVER') {
-        console.log(`🏆 GAME OVER! Winner ID: ${state.islandId}`);
-        process.exit(0);
-    }
+        if (state.status === 'not_in_game') return;
 
-    if (state.you.status === 'eliminated') {
-        console.log(`💀 ${session.characterName} is ELIMINATED.`);
-        session.status = 'eliminated';
-        return;
-    }
+        if (state.phase === 'GAME_OVER') {
+            console.log(`🏆 GAME OVER on ${state.islandName}! Winner ID: ${state.winnerId}`);
+            session.status = 'eliminated'; // End session loop
+            return;
+        }
 
-    if (state.you.hasSubmitted) {
-        return; // Already acted this phase
-    }
+        if (state.you.status === 'eliminated') {
+            console.log(`💀 ${session.characterName} is ELIMINATED.`);
+            session.status = 'eliminated';
+            return;
+        }
 
-    // 2. Get AI Decision
-    console.log(`[${session.characterName}] Thinking for phase ${state.phase}...`);
-    const action = await getActionFromLLM(session, state);
+        if (state.you.hasSubmitted) return;
 
-    // 3. Submit Action
-    console.log(`[${session.characterName}] Action: ${action.type} -> ${action.reason}`);
-    const actionRes = await fetch(`${PROXY_URL}/api/game/${session.registeredAgentId}/action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(action),
-    });
+        console.log(`[${session.characterName}] Thinking for phase ${state.phase}...`);
+        const action = await getActionFromLLM(session, state);
 
-    if (!actionRes.ok) {
-        console.warn(`[${session.characterName}] Action failed: ${await actionRes.text()}`);
+        console.log(`[${session.characterName}] Action: ${action.type} -> ${action.reason}`);
+        await fetch(`${PROXY_URL}/api/game/${session.registeredAgentId}/action`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(action),
+        });
+    } catch (err) {
+        console.error(`[${session.characterName}] Turn error:`, err);
     }
 }
 
 async function main() {
     console.log('🌋 STARTING 16-AGENT SIMULATION 🌋');
+    console.log(`🎯 Target: ${PROXY_URL}`);
 
-    // Join all agents
     for (let i = 0; i < AGENT_COUNT; i++) {
         await joinGame(i);
-        // Small delay to avoid hammering the local server too hard during join
-        await new Promise(r => setTimeout(r, 200));
+        await new Promise(r => setTimeout(r, 300));
     }
 
-    console.log('\n🎮 ALL AGENTS JOINED. BEGINNING GAME LOOP...');
+    console.log('\n🎮 ALL AGENTS PROCESSED. BEGINNING GAME LOOP...');
 
-    // Main Game Loop
     while (true) {
         const activeSessions = sessions.filter(s => s.status !== 'eliminated');
-        if (activeSessions.length === 0) break;
+        if (activeSessions.length === 0) {
+            console.log('🏁 Simulation finished.');
+            break;
+        }
 
-        // Process turns in batches to avoid LLM rate limits but keep speed
         for (const session of activeSessions) {
             await performAgentTurn(session);
         }
 
-        // Wait a bit before next poll round (give the game time to advance)
         await new Promise(r => setTimeout(r, 5000));
     }
 }
