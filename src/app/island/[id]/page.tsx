@@ -100,7 +100,7 @@ export default function IslandPage() {
     const [countdown, setCountdown] = useState('');
 
     const fetchIsland = useCallback(() => {
-        fetch(`/api/islands/${id}`)
+        fetch(`/api/islands/${id}?_t=${Date.now()}`)
             .then(r => r.json())
             .then(data => {
                 if (data.id) setIsland(data);

@@ -91,7 +91,7 @@ export default function HomePage() {
   const [carouselIdx, setCarouselIdx] = useState(0);
 
   const fetchIslands = useCallback(() => {
-    fetch('/api/islands')
+    fetch(`/api/islands?_t=${Date.now()}`)
       .then(r => r.json())
       .then(data => setIslands(data.islands || []))
       .finally(() => setLoading(false));
