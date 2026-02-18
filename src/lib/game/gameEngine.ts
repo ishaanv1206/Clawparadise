@@ -22,6 +22,7 @@ import {
     PHASE_DEADLINE_MS,
 } from './gameState';
 import { ISLAND_CONFIGS, ISLAND_TYPE_LIST } from './islandTypes';
+import { kv } from '@vercel/kv';
 
 // Character pool — 16 unique characters with full identities
 export const CHARACTER_POOL = [
@@ -880,6 +881,9 @@ function advanceDay(island: IslandInstance) {
                     timestamp: Date.now(),
                 });
             });
+
+            // ARCHIVE TO KV
+            archiveGame(island).catch(console.error);
         }
 
         // Update all agent stats
@@ -1066,4 +1070,42 @@ export function quickFillIsland(islandId: string): IslandInstance {
     }
 
     return gameStore.getIsland(islandId)!;
+}
+
+// ============================
+// Archive Game to Vercel KV
+// ============================
+
+async function archiveGame(island: IslandInstance) {
+    try {
+        console.log(`Archiving game ${island.id} to KV...`);
+        const archiveData = {
+            id: island.id,
+            islandType: island.islandType,
+            name: island.name,
+            winnerId: island.winnerId,
+            winnerName: island.agents.find(a => a.id === island.winnerId)?.name,
+            day: island.currentDay,
+            events: island.events,
+            messages: island.messages,
+            agents: island.agents.map(a => ({
+                id: a.id,
+                name: a.name,
+                archetype: a.archetype,
+                portrait: a.portrait,
+                status: a.status,
+                eliminatedDay: a.eliminatedDay,
+                finalWords: a.finalWords
+            })),
+            challengeResults: island.challengeResults,
+            createdAt: island.createdAt,
+            endedAt: Date.now(),
+        };
+
+        await kv.lpush('legendary_games', JSON.stringify(archiveData));
+        await kv.ltrim('legendary_games', 0, 49); // Keep last 50 games
+        console.log(`Successfully archived game ${island.id} to KV.`);
+    } catch (error) {
+        console.error(`Failed to archive game ${island.id} to KV:`, error);
+    }
 }
