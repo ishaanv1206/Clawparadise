@@ -3,6 +3,8 @@
 import { NextResponse } from 'next/server';
 import { agentStore } from '@/lib/game/gameState';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
     const leaderboard = await agentStore.getLeaderboard();
     const allAgents = await agentStore.getAllAgents();

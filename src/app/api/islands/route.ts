@@ -5,6 +5,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { gameStore } from '@/lib/game/gameState';
 import { quickFillIsland } from '@/lib/game/gameEngine';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
     const islands = await gameStore.getAllIslands();
     return NextResponse.json({

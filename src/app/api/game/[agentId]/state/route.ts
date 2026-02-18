@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getAgentGameState } from '@/lib/game/gameEngine';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
     _req: Request,
     { params }: { params: Promise<{ agentId: string }> }
