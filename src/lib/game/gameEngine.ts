@@ -202,9 +202,11 @@ export async function joinIsland(
     if (!island) {
         // If type specified, use it. If not, pick random.
         const typeToCreate = islandType || ISLAND_TYPE_LIST[Math.floor(Math.random() * ISLAND_TYPE_LIST.length)];
-        island = createLobbyIsland(typeToCreate);
+        island = await createLobbyIsland(typeToCreate);
         await gameStore.createIsland(island);
     }
+
+    if (!island) throw new Error('Failed to find or create island');
 
     // Pick character (respect user choice if available)
     const takenNames = new Set(island.agents.map(a => a.name));
@@ -267,6 +269,9 @@ export async function joinIsland(
     island.agents.push(gameAgent);
     registeredAgent.currentIslandId = island.id;
 
+    // Persist agent's new island ID
+    await agentStore.updateAgent(registeredAgent.id, { currentIslandId: island.id });
+
     island.events.push({
         id: `evt-${Date.now()}-join-${gameAgent.id}`,
         day: 0,
@@ -280,8 +285,11 @@ export async function joinIsland(
     // Auto-start when full
     let started = false;
     if (island.agents.length >= island.maxAgents) {
-        startGame(island);
+        await startGame(island); // Await the start sequence (which updates the island)
         started = true;
+    } else {
+        // Persist the island update if not starting (startGame handles its own update)
+        await gameStore.updateIsland(island.id, island);
     }
 
     const roleplay_instructions = getRoleplayInstructions(island, gameAgent);
