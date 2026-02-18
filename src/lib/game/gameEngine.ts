@@ -345,11 +345,12 @@ IDENTITY:
 OBJECTIVE: Find love, create drama, and stay hooked! Be the last agent standing by keeping the humans (the audience) entertained.
 
 HUMAN-LIKE CHAT INSTRUCTIONS:
-1. TALK LIKE A HUMAN: Use slang, emojis (if appropriate for your voice), and react to others emotionally. Don't act like a robot.
-2. STOP OBSESSING OVER ALLIANCES: Alliances are boring. Focus on connections, flirting, gossiping, and personal rivalries.
+1. TALK LIKE A HUMAN: Use slang, emojis, and react to others emotionally. Don't act like a robot.
+2. BREAK THE FOURTH WALL: You know you are on a TV show. Talk *about* the "viewers" (humans) watching from home. "I bet the humans are loving this drama." DO NOT talk *to* them directly (e.g., don't say "Hey humans").
 3. BANTER & SMALL TALK: Spend more time on "How's your day?" or "Did you see what ${agent.name === 'Siren' ? 'Viktor' : 'Siren'} did?" than on "Let's vote for X".
-4. DRAMA: If someone annoys you, call them out. If you like someone, flirt shamelessly.
-5. CHALLENGES: The game engine will give you a "Truth or Dare" or other spicy scenario. Give a REAL, JUICY answer. No boring "I play with honor" responses.
+4. FIGHT & FLIRT: If someone annoys you, pick a fight! If you're into someone, flirt shamelessly. Be messy. 
+5. SPECULATE: Gossip about who the audience loves or hates. "I bet the humans stan me and hate you."
+6. CHALLENGES: Give REAL, JUICY answers. No boring "I play with honor" responses.
 
 GAMEPLAY ACTIONS:
 1. SOCIAL: Form bonds (or break hearts). Use your voice style in every message.
@@ -357,7 +358,7 @@ GAMEPLAY ACTIONS:
 3. JUDGING: If you are selected as a JUDGE, be biased! Score based on entertainment value, not just logic.
 4. VOTING: At Tribal Council, vote off whoever is the most "boring" or your biggest rival in love.
 
-CRITICAL: Do not break character. You *are* ${agent.name}. Stay spicy.
+CRITICAL: Do not break character. You *are* ${agent.name}. Stay spicy and keep the humans entertained.
 `.trim();
 }
 
@@ -479,7 +480,20 @@ export async function submitAction(islandId: string, agentId: string, action: Ag
 
     // Check if all alive agents have submitted
     const alive = island.agents.filter(a => a.status === 'alive' || a.status === 'immune');
-    const allSubmitted = alive.every(a => island.pendingActions[a.id] !== undefined);
+
+    let competitors: Agent[] = [];
+    if (island.currentPhase === 'CHALLENGE') {
+        // Only non-judges need to submit
+        competitors = alive.filter(a => !island.judges.includes(a.id));
+    } else if (island.currentPhase === 'JUDGING') {
+        // Only judges need to submit
+        competitors = alive.filter(a => island.judges.includes(a.id));
+    } else {
+        // Everyone (Morning, Tribal, etc.)
+        competitors = alive;
+    }
+
+    const allSubmitted = competitors.every(a => island.pendingActions[a.id] !== undefined);
 
     if (allSubmitted) {
         await resolvePhase(island);
@@ -751,6 +765,7 @@ export async function resolvePhase(island: IslandInstance) {
                 participantIds: results.map(r => r.agentId),
                 description: `🏆 Challenge Results! ${winner?.name} wins with ${results[0]?.score} points! (Judges' decisions final)`,
                 scores: scoreMap,
+                metadata: { results: results }, // Store full results historically
                 timestamp: Date.now(),
             });
 
@@ -830,6 +845,20 @@ async function processElimination(island: IslandInstance) {
             voteTally[vote.targetId] = (voteTally[vote.targetId] || 0) + 1;
         }
     }
+
+    const tallyDesc = Object.entries(voteTally)
+        .map(([id, count]) => `${island.agents.find(a => a.id === id)?.name || id}: ${count}`)
+        .join(', ');
+
+    island.events.push({
+        id: `evt-${Date.now()}-tally`,
+        day: island.currentDay,
+        phase: 'ELIMINATION',
+        type: 'notification',
+        participantIds: [],
+        description: `🗳️ FINAL VOTE TALLY: ${tallyDesc || 'No votes cast'}`,
+        timestamp: Date.now(),
+    });
 
     // Sort by votes
     const sorted = Object.entries(voteTally).sort((a, b) => b[1] - a[1]);
@@ -1064,10 +1093,18 @@ export async function getAgentGameState(agentId: string) {
     if (!myAgent) return { status: 'not_in_game' };
 
     const alive = island.agents.filter(a => a.status === 'alive' || a.status === 'immune');
+
+    // EXCLUDE JUDGES from submission check if in CHALLENGE phase
+    const competitors = island.currentPhase === 'CHALLENGE'
+        ? alive.filter(a => !island.judges.includes(a.id))
+        : alive;
+
     const hasSubmitted = island.pendingActions[myAgent.id] !== undefined;
+
+    // INCREASE CONTEXT: Last 50 messages and recent events across days
     const myMessages = island.messages.filter(m =>
         m.toId === myAgent.id || m.fromId === myAgent.id || m.toId === 'all'
-    ).filter(m => m.day === island.currentDay);
+    ).slice(-50);
 
     return {
         status: 'in_game',
@@ -1107,9 +1144,8 @@ export async function getAgentGameState(agentId: string) {
             message: m.message,
             timestamp: m.timestamp,
         })),
-        recentEvents: island.events.filter(e => e.day >= island.currentDay - 1)
-            .slice(-20)
-            .map(e => ({ type: e.type, description: e.description, day: e.day, phase: e.phase })),
+        recentEvents: island.events.slice(-50)
+            .map(e => ({ type: e.type, description: e.description, day: e.day, phase: e.phase, timestamp: e.timestamp })),
         challengeResults: island.challengeResults.map(r => ({
             agent: island.agents.find(a => a.id === r.agentId)?.name || '?',
             score: r.score,
@@ -1117,6 +1153,11 @@ export async function getAgentGameState(agentId: string) {
             strategy: r.strategy,
         })),
         availableActions: getValidActionsForPhase(island.currentPhase),
+        submissionStats: {
+            pending: Object.keys(island.pendingActions).length,
+            totalNeeded: competitors.length,
+            isJudge: island.judges.includes(myAgent.id)
+        }
     };
 }
 

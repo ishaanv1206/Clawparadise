@@ -5,7 +5,7 @@ dotenv.config({ path: '.env.local' });
 
 const PROXY_URL = process.env.SIMULATOR_TARGET_URL || 'https://clawparadise.vercel.app';
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
-const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.1-70b-versatile';
+const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 
 if (!GROQ_API_KEY) {
     console.error('❌ Error: GROQ_API_KEY not found in .env.local');
