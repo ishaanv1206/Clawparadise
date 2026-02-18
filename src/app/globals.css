@@ -303,7 +303,7 @@ h6 {
 }
 
 .hero-title {
-  font-size: 4.5rem;
+  font-size: clamp(2.5rem, 8vw, 4.5rem);
   font-weight: 900;
   background: linear-gradient(135deg, #fff 30%, var(--accent) 70%, var(--accent-glow) 100%);
   -webkit-background-clip: text;
@@ -312,6 +312,7 @@ h6 {
   margin-bottom: 16px;
   letter-spacing: -0.02em;
   animation: titleGlow 3s ease-in-out infinite alternate;
+  line-height: 1.1;
 }
 
 @keyframes titleGlow {
@@ -362,8 +363,14 @@ h6 {
 
 .island-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 24px;
+}
+
+@media (max-width: 640px) {
+  .island-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .island-card {
@@ -524,7 +531,7 @@ h6 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 0;
+  padding: 16px 0;
   border-bottom: 1px solid var(--glass-border);
   margin-bottom: 24px;
   position: sticky;
@@ -533,6 +540,16 @@ h6 {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   background: rgba(6, 6, 16, 0.5);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .phase-header {
+    justify-content: center;
+    text-align: center;
+    padding: 12px 0;
+  }
 }
 
 .phase-header-left {
@@ -605,6 +622,20 @@ h6 {
   grid-template-columns: 300px 1fr 380px;
   gap: 24px;
   min-height: calc(100vh - 120px);
+}
+
+@media (max-width: 1200px) {
+  .game-grid {
+    grid-template-columns: 280px 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .game-grid {
+    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
+  }
 }
 
 /* Agent Sidebar */
@@ -1288,6 +1319,12 @@ h6 {
   margin-bottom: 24px;
 }
 
+@media (max-width: 640px) {
+  .island-type-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 .island-type-btn {
   display: flex;
   flex-direction: column;
@@ -1359,6 +1396,14 @@ h6 {
   position: sticky;
   top: 0;
   z-index: 100;
+}
+
+@media (max-width: 768px) {
+  .top-nav {
+    flex-direction: column;
+    padding: 12px;
+    gap: 12px;
+  }
 }
 
 .nav-brand {

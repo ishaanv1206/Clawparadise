@@ -155,6 +155,18 @@ const GLOBALS = `
         transition: all 0.3s ease;
         margin-bottom: 12px;
     }
+    @media (max-width: 640px) {
+        .chat-bubble-3d {
+            padding: 12px;
+            gap: 12px;
+            transform: none !important;
+            animation: fadeIn 0.5s forwards;
+        }
+        .avatar-3d {
+            width: 40px !important;
+            height: 40px !important;
+        }
+    }
     .chat-bubble-3d:hover {
         transform: rotateX(0deg) scale(1) translateY(-2px);
         background: rgba(255, 255, 255, 0.06);
@@ -184,6 +196,20 @@ const GLOBALS = `
         background: rgba(0,0,0,0.9); z-index: 1000;
         display: flex; flexDirection: column; align-items: center; justify-content: center;
         animation: fadeIn 1s;
+        padding: 20px;
+        text-align: center;
+    }
+    @media (max-width: 640px) {
+        .eliminated-overlay h1 {
+            font-size: 2.5rem !important;
+        }
+        .eliminated-overlay img {
+            width: 150px !important;
+            height: 150px !important;
+        }
+        .eliminated-overlay h2 {
+            font-size: 2rem !important;
+        }
     }
 `;
 
@@ -301,9 +327,9 @@ export default function IslandPage() {
             <div className="parallax-layer stars-1" />
             <div className="parallax-layer stars-2" />
 
-            <nav className="top-nav" style={{ position: 'relative', zIndex: 10, background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(10px)' }}>
-                <Link href="/" className="nav-brand">🏝️ AI Survivor Island</Link>
-                <div className="nav-links">
+            <nav className="top-nav" style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(10px)', display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                <Link href="/" className="nav-brand">🏝️ AI Survivor</Link>
+                <div className="nav-links" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                     <Link href="/" className="nav-link">Islands</Link>
                     <Link href="/leaderboard" className="nav-link">Leaderboard</Link>
                     <Link href="/for-agents" className="nav-link accent">For Agents</Link>
@@ -311,19 +337,19 @@ export default function IslandPage() {
             </nav>
 
             {/* Island Header */}
-            <div className="island-header" style={{ '--type-color': meta.color } as React.CSSProperties}>
-                <div className="island-header-left">
-                    <span className="island-emoji">{meta.emoji}</span>
-                    <div>
-                        <h1 className="island-name">{island.name}</h1>
-                        <div className="island-meta-row">
+            <div className="island-header" style={{ '--type-color': meta.color, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 20, padding: 20 } as React.CSSProperties}>
+                <div className="island-header-left" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span className="island-emoji" style={{ fontSize: 'clamp(1.5rem, 5vw, 2.5rem)' }}>{meta.emoji}</span>
+                    <div style={{ minWidth: 200 }}>
+                        <h1 className="island-name" style={{ fontSize: 'clamp(1.2rem, 4vw, 2rem)', margin: 0 }}>{island.name}</h1>
+                        <div className="island-meta-row" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
                             <span className="phase-badge" style={{ background: PHASE_COLORS[island.currentPhase] }}>
                                 {PHASE_LABELS[island.currentPhase] || island.currentPhase}
                             </span>
                             <span className="day-badge">Day {island.currentDay}/{island.maxDays}</span>
                             <span className="alive-badge">{aliveCountOnDay} alive</span>
                             {island.dayTwist && (
-                                <span className="twist-badge">
+                                <span className="twist-badge" style={{ background: 'rgba(255,255,0,0.1)', border: '1px solid gold', color: 'gold', padding: '2px 8px', borderRadius: 4, fontSize: '0.7rem' }}>
                                     {island.dayTwist === 'double_elimination' ? '⚡ Double Elim' :
                                         island.dayTwist === 'no_elimination' ? '🛡️ No Elim' :
                                             island.dayTwist === 'immunity_challenge' ? '🏆 Triple Immunity' : island.dayTwist}
@@ -332,15 +358,12 @@ export default function IslandPage() {
                         </div>
                     </div>
                 </div>
-                <div className="island-header-right">
+                <div className="island-header-right" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                     {isActive && (
                         <>
-                            <div className="deadline-timer">
-                                <span className="timer-label">Phase ends in</span>
-                                <span className="timer-value">{countdown}</span>
-                            </div>
-                            <div className="submission-status">
-                                {pendingCount}/{competitors.length} submitted
+                            <div className="deadline-timer" style={{ textAlign: 'right' }}>
+                                <div className="timer-label" style={{ fontSize: '0.7rem', opacity: 0.6 }}>Phase ends in</div>
+                                <div className="timer-value" style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#ffd700' }}>{countdown}</div>
                             </div>
                             <button className="btn btn-primary btn-sm" onClick={forceAdvance}>
                                 ⏩ Force Advance
@@ -413,19 +436,19 @@ export default function IslandPage() {
                 {/* Main Game View — Tabs */}
                 {island.currentPhase !== 'LOBBY' && (
                     <div className="game-tabs">
-                        <div className="tab-bar">
-                            <button className={`tab ${activeTab === 'events' ? 'active' : ''}`} onClick={() => setActiveTab('events')}>
-                                📜 Event Feed
+                        <div className="tab-bar" style={{ display: 'flex', flexWrap: 'wrap', gap: 4, borderBottom: '1px solid rgba(255,255,255,0.1)', padding: '0 10px' }}>
+                            <button className={`tab ${activeTab === 'events' ? 'active' : ''}`} style={{ flex: '1 1 auto', minWidth: 100 }} onClick={() => setActiveTab('events')}>
+                                📜 Events
                             </button>
-                            <button className={`tab ${activeTab === 'challenge' ? 'active' : ''}`} onClick={() => setActiveTab('challenge')}>
-                                ⚔️ Challenge Arena
+                            <button className={`tab ${activeTab === 'challenge' ? 'active' : ''}`} style={{ flex: '1 1 auto', minWidth: 100 }} onClick={() => setActiveTab('challenge')}>
+                                ⚔️ Challenge
                             </button>
-                            <button className={`tab ${activeTab === 'agents' ? 'active' : ''}`} onClick={() => setActiveTab('agents')}>
-                                👥 Agents ({alive.length} alive)
+                            <button className={`tab ${activeTab === 'agents' ? 'active' : ''}`} style={{ flex: '1 1 auto', minWidth: 100 }} onClick={() => setActiveTab('agents')}>
+                                👥 Agents
                             </button>
                             {(island.currentPhase === 'TRIBAL_COUNCIL' || island.currentPhase === 'ELIMINATION') && (
-                                <button className={`tab ${activeTab === 'votes' ? 'active' : ''}`} onClick={() => setActiveTab('votes')}>
-                                    🗳️ Tribal Council
+                                <button className={`tab ${activeTab === 'votes' ? 'active' : ''}`} style={{ flex: '1 1 auto', minWidth: 100 }} onClick={() => setActiveTab('votes')}>
+                                    🗳️ Votes
                                 </button>
                             )}
                         </div>
@@ -644,13 +667,9 @@ export default function IslandPage() {
 
             {/* ELIMINATION FULLSCREEN OVERLAY */}
             {island.currentPhase === 'ELIMINATION' && (
-                <div className="eliminated-overlay" style={{
-                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                    background: 'rgba(0,0,0,0.95)', zIndex: 1000,
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
-                }}>
-                    <h1 style={{ fontSize: '4rem', color: '#ff4444', marginBottom: 32, textShadow: '0 0 20px #ff0000' }}>THE TRIBE HAS SPOKEN</h1>
-                    <div style={{ display: 'flex', gap: 40, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <div className="eliminated-overlay">
+                    <h1 style={{ fontSize: 'clamp(2rem, 8vw, 4rem)', color: '#ff4444', marginBottom: 32, textShadow: '0 0 20px #ff0000' }}>THE TRIBE HAS SPOKEN</h1>
+                    <div style={{ display: 'flex', gap: 20, justifyContent: 'center', flexWrap: 'wrap' }}>
                         {(() => {
                             const elimEvents = island.events.filter(e => e.phase === 'ELIMINATION' && e.day === island.currentDay && (e.type === 'elimination' || e.type === 'double_elimination'));
                             if (elimEvents.length === 0) return <p style={{ fontSize: '1.5rem', opacity: 0.7 }}>Reading the votes...</p>;
@@ -661,11 +680,11 @@ export default function IslandPage() {
                                 return (
                                     <div key={agent.id} style={{ textAlign: 'center', animation: 'fadeIn 1s' }}>
                                         <div style={{ position: 'relative', display: 'inline-block' }}>
-                                            <img src={agent.portrait} style={{ width: 240, height: 240, borderRadius: '50%', border: '4px solid #ff4444', filter: 'grayscale(100%)' }} onError={(e) => { (e.target as HTMLImageElement).src = '/images/logo.jpg'; }} />
+                                            <img src={agent.portrait} style={{ width: 'clamp(120px, 30vw, 240px)', height: 'clamp(120px, 30vw, 240px)', borderRadius: '50%', border: '4px solid #ff4444', filter: 'grayscale(100%)', objectFit: 'cover' }} onError={(e) => { (e.target as HTMLImageElement).src = '/images/logo.jpg'; }} />
                                             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(255,0,0,0.2)', borderRadius: '50%' }} />
                                         </div>
-                                        <h2 style={{ fontSize: '3rem', marginTop: 24 }}>{agent.name}</h2>
-                                        <p style={{ fontSize: '1.5rem', opacity: 0.7, color: '#aaa', marginTop: 16 }}>{agent.finalWords || 'Left with dignity.'}</p>
+                                        <h2 style={{ fontSize: 'clamp(1.5rem, 5vw, 3rem)', marginTop: 24 }}>{agent.name}</h2>
+                                        <p style={{ fontSize: 'clamp(0.9rem, 3vw, 1.5rem)', opacity: 0.7, color: '#aaa', marginTop: 16 }}>{agent.finalWords || 'Left with dignity.'}</p>
                                     </div>
                                 );
                             });
@@ -677,8 +696,8 @@ export default function IslandPage() {
             {/* DAY TRANSITION OVERLAY */}
             {island.currentDay > 1 && island.currentPhase === 'MORNING' && Date.now() - island.phaseDeadline < -140000 && (
                 <div className="eliminated-overlay" style={{ background: 'rgba(0,0,0,0.9)', zIndex: 999 }}>
-                    <h1 style={{ fontSize: '5rem', background: 'linear-gradient(to bottom, #ffd700, #ff8c00)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>DAY {island.currentDay}</h1>
-                    <p style={{ fontSize: '1.5rem', letterSpacing: '4px' }}>The sun rises on a new set of choices...</p>
+                    <h1 style={{ fontSize: 'clamp(3rem, 15vw, 6rem)', background: 'linear-gradient(to bottom, #ffd700, #ff8c00)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', textAlign: 'center' }}>DAY {island.currentDay}</h1>
+                    <p style={{ fontSize: 'clamp(1rem, 4vw, 1.5rem)', letterSpacing: '4px', textAlign: 'center', padding: '0 20px' }}>The sun rises on a new set of choices...</p>
                 </div>
             )}
         </div>
