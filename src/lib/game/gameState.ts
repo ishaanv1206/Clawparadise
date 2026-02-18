@@ -215,6 +215,10 @@ class GameStore {
     }
   }
 
+  async saveIsland(island: IslandInstance): Promise<void> {
+    await kv.set(`island:${island.id}`, island);
+  }
+
   async deleteIsland(id: string): Promise<void> {
     await kv.del(`island:${id}`);
     await kv.srem('active_islands', id);

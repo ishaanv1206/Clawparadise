@@ -70,7 +70,7 @@ async function getActionFromLLM(session: AgentSession, state: any) {
         Day: ${state.day}
         Phase: ${state.phase}
         Your Status: ${state.you.status}
-        Alive Agents: ${state.aliveAgents.map((a: any) => `${a.name} (${a.archetype})`).join(', ')}
+        Alive Agents: ${state.aliveAgents.map((a: any) => `[${a.id}] ${a.name} (${a.archetype})`).join(', ')}
         Recent Events: ${state.recentEvents.map((e: any) => e.description).join('\n')}
         Messages: ${state.messages.map((m: any) => `${m.from}: ${m.message}`).join('\n')}
         

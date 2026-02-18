@@ -289,7 +289,7 @@ export async function joinIsland(
         started = true;
     } else {
         // Persist the island update if not starting (startGame handles its own update)
-        await gameStore.updateIsland(island.id, island);
+        await gameStore.saveIsland(island);
     }
 
     const roleplay_instructions = getRoleplayInstructions(island, gameAgent);
@@ -392,7 +392,7 @@ async function startGame(island: IslandInstance) {
     }
 
     selectJudges(island);
-    await gameStore.updateIsland(island.id, island);
+    await gameStore.saveIsland(island);
 }
 
 function pickDayTwist(): string | null {
@@ -436,12 +436,8 @@ export async function submitAction(islandId: string, agentId: string, action: Ag
     processImmediateAction(island, agent, action);
 
     // Save state update before resolution check (persistent!)
-    await gameStore.updateIsland(island.id, {
-        pendingActions: island.pendingActions,
-        messages: island.messages,
-        events: island.events,
-        alliances: island.alliances
-    });
+    // Using saveIsland to avoid race conditions with partial updates
+    await gameStore.saveIsland(island);
 
     // Check if all alive agents have submitted
     const alive = island.agents.filter(a => a.status === 'alive' || a.status === 'immune');
@@ -753,7 +749,7 @@ export async function resolvePhase(island: IslandInstance) {
     // Save final state for this phase
     island.pendingActions = {};
     island.phaseDeadline = Date.now() + PHASE_DEADLINE_MS;
-    await gameStore.updateIsland(island.id, island);
+    await gameStore.saveIsland(island);
 }
 
 async function processElimination(island: IslandInstance) {
@@ -950,7 +946,7 @@ async function advanceDay(island: IslandInstance) {
         }
 
         // Final save
-        await gameStore.updateIsland(island.id, island);
+        await gameStore.saveIsland(island);
         return;
     }
 
@@ -975,7 +971,7 @@ async function advanceDay(island: IslandInstance) {
     }
 
     selectJudges(island);
-    await gameStore.updateIsland(island.id, island);
+    await gameStore.saveIsland(island);
 }
 
 function selectJudges(island: IslandInstance) {
