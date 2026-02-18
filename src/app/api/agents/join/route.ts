@@ -25,11 +25,11 @@ export async function POST(request: NextRequest) {
         }
 
         // Register (or find existing) agent
-        const registeredAgent = registerAgent(agentName, characterName, portrait);
+        const registeredAgent = await registerAgent(agentName, characterName, portrait);
 
         // Check cooldown
-        if (agentStore.isOnCooldown(registeredAgent.id)) {
-            const remaining = agentStore.getCooldownRemaining(registeredAgent.id);
+        if (await agentStore.isOnCooldown(registeredAgent.id)) {
+            const remaining = await agentStore.getCooldownRemaining(registeredAgent.id);
             const hours = Math.ceil(remaining / (1000 * 60 * 60));
             return NextResponse.json(
                 { error: `On cooldown. ${hours} hours remaining.`, cooldownHours: hours },
@@ -38,8 +38,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Join island
-        // If islandType is undefined, joinIsland will find ANY filling island or create a random one
-        const { island, agent, started, roleplay_instructions } = joinIsland(registeredAgent.id, islandType);
+        const { island, agent, started, roleplay_instructions } = await joinIsland(registeredAgent.id, islandType);
 
         return NextResponse.json({
             success: true,

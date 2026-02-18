@@ -10,8 +10,8 @@ export async function GET(
 ) {
     const { id } = await params;
 
-    // 1. Check in-memory first
-    let island = gameStore.getIsland(id);
+    // 1. Check in-memory first (now Redis)
+    let island = await gameStore.getIsland(id);
 
     // 2. If not found, check KV history
     if (!island) {

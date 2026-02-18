@@ -6,7 +6,7 @@ import { gameStore } from '@/lib/game/gameState';
 import { quickFillIsland } from '@/lib/game/gameEngine';
 
 export async function GET() {
-    const islands = gameStore.getAllIslands();
+    const islands = await gameStore.getAllIslands();
     return NextResponse.json({
         islands: islands.map(island => ({
             id: island.id,
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
         const { islandId, action } = body;
 
         if (action === 'quick_fill' && islandId) {
-            const island = quickFillIsland(islandId);
+            const island = await quickFillIsland(islandId);
             return NextResponse.json({
                 island: {
                     id: island.id,

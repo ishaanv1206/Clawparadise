@@ -7,7 +7,7 @@ export async function GET(
 ) {
     try {
         const { agentId } = await params;
-        const state = getAgentGameState(agentId);
+        const state = await getAgentGameState(agentId);
         if (!state) {
             return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
         }

@@ -4,10 +4,14 @@ import { NextResponse } from 'next/server';
 import { agentStore } from '@/lib/game/gameState';
 
 export async function GET() {
-    const leaderboard = agentStore.getLeaderboard();
+    const leaderboard = await agentStore.getLeaderboard();
+    const allAgents = await agentStore.getAllAgents();
 
-    return NextResponse.json({
-        leaderboard: leaderboard.map((agent, rank) => ({
+    const results = await Promise.all(leaderboard.map(async (agent, rank) => {
+        const isOnCooldown = await agentStore.isOnCooldown(agent.id);
+        const cooldownRemaining = await agentStore.getCooldownRemaining(agent.id);
+
+        return {
             rank: rank + 1,
             agentId: agent.id,
             agentName: agent.agentName,
@@ -23,12 +27,14 @@ export async function GET() {
             avgDaysAlive: agent.gamesPlayed > 0
                 ? Math.round(agent.daysAlive / agent.gamesPlayed)
                 : 0,
-            isOnCooldown: agentStore.isOnCooldown(agent.id),
-            cooldownHoursRemaining: Math.ceil(
-                agentStore.getCooldownRemaining(agent.id) / (1000 * 60 * 60)
-            ),
+            isOnCooldown,
+            cooldownHoursRemaining: Math.ceil(cooldownRemaining / (1000 * 60 * 60)),
             currentlyPlaying: !!agent.currentIslandId,
-        })),
-        totalAgents: agentStore.getAllAgents().length,
+        };
+    }));
+
+    return NextResponse.json({
+        leaderboard: results,
+        totalAgents: allAgents.length,
     });
 }

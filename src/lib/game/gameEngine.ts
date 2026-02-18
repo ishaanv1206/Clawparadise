@@ -125,9 +125,9 @@ function generateId(): string {
 // Register External Agent
 // ============================
 
-export function registerAgent(agentName: string, characterName: string, portrait?: string): RegisteredAgent {
+export async function registerAgent(agentName: string, characterName: string, portrait?: string): Promise<RegisteredAgent> {
     // Return existing if already registered
-    const existing = agentStore.findByName(agentName);
+    const existing = await agentStore.findByName(agentName);
     if (existing) return existing;
 
     const portraitPath = portrait || CHARACTER_POOL[Math.floor(Math.random() * CHARACTER_POOL.length)].portrait;
@@ -148,7 +148,7 @@ export function registerAgent(agentName: string, characterName: string, portrait
         lastGameAt: null,
     };
 
-    agentStore.register(agent);
+    await agentStore.register(agent);
     return agent;
 }
 
@@ -156,21 +156,21 @@ export function registerAgent(agentName: string, characterName: string, portrait
 // Join Island
 // ============================
 
-export function joinIsland(
+export async function joinIsland(
     agentId: string,
     islandType?: IslandType
-): { island: IslandInstance; agent: Agent; started: boolean; roleplay_instructions: string } {
-    const registeredAgent = agentStore.getAgent(agentId);
+): Promise<{ island: IslandInstance; agent: Agent; started: boolean; roleplay_instructions: string }> {
+    const registeredAgent = await agentStore.getAgent(agentId);
     if (!registeredAgent) throw new Error('Agent not registered');
 
-    if (agentStore.isOnCooldown(agentId)) {
-        const remaining = agentStore.getCooldownRemaining(agentId);
+    if (await agentStore.isOnCooldown(agentId)) {
+        const remaining = await agentStore.getCooldownRemaining(agentId);
         const hours = Math.ceil(remaining / (1000 * 60 * 60));
         throw new Error(`Agent is on cooldown. ${hours} hours remaining.`);
     }
 
     if (registeredAgent.currentIslandId) {
-        const existingIsland = gameStore.getIsland(registeredAgent.currentIslandId);
+        const existingIsland = await gameStore.getIsland(registeredAgent.currentIslandId);
         if (existingIsland) {
             const existingAgent = existingIsland.agents.find(a => a.externalAgentId === agentId);
             if (existingAgent) {
@@ -184,17 +184,18 @@ export function joinIsland(
         }
         // If island doesn't exist anymore, clear the stale ID
         registeredAgent.currentIslandId = null;
+        await agentStore.updateAgent(agentId, { currentIslandId: null });
     }
 
     let island: IslandInstance | undefined;
 
     // 1. If type specified, try to find matching LOBBY
     if (islandType) {
-        island = gameStore.findFillingIsland(islandType);
+        island = await gameStore.findFillingIsland(islandType);
     }
     // 2. If no type specified, try to find ANY filling LOBBY
     else {
-        island = gameStore.findAnyFillingIsland();
+        island = await gameStore.findAnyFillingIsland();
     }
 
     // 3. If still no island, create a new one
@@ -202,6 +203,7 @@ export function joinIsland(
         // If type specified, use it. If not, pick random.
         const typeToCreate = islandType || ISLAND_TYPE_LIST[Math.floor(Math.random() * ISLAND_TYPE_LIST.length)];
         island = createLobbyIsland(typeToCreate);
+        await gameStore.createIsland(island);
     }
 
     // Pick character (respect user choice if available)
@@ -317,9 +319,10 @@ CRITICAL: Do not break character. You *are* ${agent.name}.
 // Create Lobby Island
 // ============================
 
-function createLobbyIsland(islandType: IslandType): IslandInstance {
+async function createLobbyIsland(islandType: IslandType): Promise<IslandInstance> {
     const config = ISLAND_CONFIGS[islandType];
-    const count = gameStore.getAllIslands().filter(i => i.islandType === islandType).length + 1;
+    const islands = await gameStore.getAllIslands();
+    const count = islands.filter(i => i.islandType === islandType).length + 1;
 
     const island: IslandInstance = {
         id: `island-${generateId()}`,
@@ -343,7 +346,7 @@ function createLobbyIsland(islandType: IslandType): IslandInstance {
         judges: [],
     };
 
-    gameStore.createIsland(island);
+    await gameStore.createIsland(island);
     return island;
 }
 
@@ -351,7 +354,7 @@ function createLobbyIsland(islandType: IslandType): IslandInstance {
 // Start Game
 // ============================
 
-function startGame(island: IslandInstance) {
+async function startGame(island: IslandInstance) {
     island.currentPhase = 'MORNING';
     island.currentDay = 1;
     island.dayTwist = pickDayTwist();
@@ -381,6 +384,7 @@ function startGame(island: IslandInstance) {
     }
 
     selectJudges(island);
+    await gameStore.updateIsland(island.id, island);
 }
 
 function pickDayTwist(): string | null {
@@ -400,8 +404,8 @@ function twistDescription(twist: string, day: number): string {
 // Submit Agent Action
 // ============================
 
-export function submitAction(islandId: string, agentId: string, action: AgentAction): { accepted: boolean; error?: string } {
-    const island = gameStore.getIsland(islandId);
+export async function submitAction(islandId: string, agentId: string, action: AgentAction): Promise<{ accepted: boolean; error?: string }> {
+    const island = await gameStore.getIsland(islandId);
     if (!island) return { accepted: false, error: 'Island not found' };
     if (island.currentPhase === 'LOBBY' || island.currentPhase === 'GAME_OVER') {
         return { accepted: false, error: `Cannot submit actions during ${island.currentPhase}` };
@@ -423,12 +427,20 @@ export function submitAction(islandId: string, agentId: string, action: AgentAct
     // Process immediate actions (messages, etc.)
     processImmediateAction(island, agent, action);
 
+    // Save state update before resolution check (persistent!)
+    await gameStore.updateIsland(island.id, {
+        pendingActions: island.pendingActions,
+        messages: island.messages,
+        events: island.events,
+        alliances: island.alliances
+    });
+
     // Check if all alive agents have submitted
     const alive = island.agents.filter(a => a.status === 'alive' || a.status === 'immune');
     const allSubmitted = alive.every(a => island.pendingActions[a.id] !== undefined);
 
     if (allSubmitted) {
-        resolvePhase(island);
+        await resolvePhase(island);
     }
 
     return { accepted: true };
@@ -552,13 +564,12 @@ function processImmediateAction(island: IslandInstance, agent: Agent, action: Ag
 // Resolve Phase (process all pending actions)
 // ============================
 
-export function resolvePhase(island: IslandInstance) {
+export async function resolvePhase(island: IslandInstance) {
     const alive = island.agents.filter(a => a.status === 'alive' || a.status === 'immune');
 
     switch (island.currentPhase) {
         case 'MORNING': {
             // Social phase already processed. Select judges and move to Challenge.
-            // Judges are selected in startGame or previous end-of-day, but ensuring here:
             if (!island.judges || island.judges.length < 2) {
                 selectJudges(island);
             }
@@ -627,7 +638,10 @@ export function resolvePhase(island: IslandInstance) {
 
         case 'JUDGING': {
             const results = island.challengeResults;
-            const judges = island.judges.filter(id => island.agents.find(a => a.id === id && a.status === 'alive'));
+            const judges = island.judges.filter(id => {
+                const a = island.agents.find(ag => ag.id === id);
+                return a && a.status === 'alive';
+            });
 
             // Apply Judge Scores
             for (const judgeId of judges) {
@@ -635,9 +649,7 @@ export function resolvePhase(island: IslandInstance) {
                 if (action?.type === 'submit_judgment' && action.targetId) {
                     const target = results.find(r => r.agentId === action.targetId);
                     if (target) {
-                        // Judge score (1-10) * 5 = Max 50 points per judge.
-                        // We assume the agent sends a score 1-10.
-                        let jScore = Math.min(10, Math.max(1, action.score || 5));
+                        let jScore = Math.min(10, Math.max(1, (action as any).score || 5));
                         target.score += jScore * 5;
 
                         island.events.push({
@@ -646,7 +658,7 @@ export function resolvePhase(island: IslandInstance) {
                             phase: 'JUDGING',
                             type: 'challenge_performance',
                             participantIds: [judgeId, target.agentId],
-                            description: `⚖️ Judge ${island.agents.find(a => a.id === judgeId)?.name} scores ${island.agents.find(a => a.id === target.agentId)?.name}: ${jScore}/10. "${action.comment || ''}"`,
+                            description: `⚖️ Judge ${island.agents.find(a => a.id === judgeId)?.name} scores ${island.agents.find(a => a.id === target.agentId)?.name}: ${jScore}/10. "${(action as any).comment || ''}"`,
                             timestamp: Date.now(),
                         });
                     }
@@ -691,7 +703,6 @@ export function resolvePhase(island: IslandInstance) {
         }
 
         case 'AFTERNOON': {
-            // Already processed via immediate actions
             island.currentPhase = 'TRIBAL_COUNCIL';
             break;
         }
@@ -705,7 +716,7 @@ export function resolvePhase(island: IslandInstance) {
                     votes.push({
                         voterId: agent.id,
                         targetId: action.targetId,
-                        reason: 'reason' in action ? (action.reason || '') : '',
+                        reason: (action as any).reason || '',
                     });
 
                     island.events.push({
@@ -726,17 +737,18 @@ export function resolvePhase(island: IslandInstance) {
         }
 
         case 'ELIMINATION': {
-            processElimination(island);
+            await processElimination(island);
             break;
         }
     }
 
-    // Reset pending actions and set new deadline
+    // Save final state for this phase
     island.pendingActions = {};
     island.phaseDeadline = Date.now() + PHASE_DEADLINE_MS;
+    await gameStore.updateIsland(island.id, island);
 }
 
-function processElimination(island: IslandInstance) {
+async function processElimination(island: IslandInstance) {
     const alive = island.agents.filter(a => a.status === 'alive' || a.status === 'immune');
 
     // No elimination twist
@@ -750,7 +762,7 @@ function processElimination(island: IslandInstance) {
             description: `🛡️ No Elimination tonight! Everyone survives to see another day.`,
             timestamp: Date.now(),
         });
-        advanceDay(island);
+        await advanceDay(island);
         return;
     }
 
@@ -775,13 +787,13 @@ function processElimination(island: IslandInstance) {
         eliminated.status = 'eliminated';
         eliminated.eliminatedDay = island.currentDay;
 
-        // Ranking-based scoring: earlier eliminated = lower rank/score
-        const totalAgents = island.agents.length;
-        const alreadyEliminated = island.agents.filter(a => a.status === 'eliminated').length; // includes this one
-        const rank = alreadyEliminated; // 1st eliminated = rank 1 = 1 point
-        const regElim = agentStore.getAgent(eliminated.externalAgentId);
+        // Ranking-based scoring
+        const alreadyEliminated = island.agents.filter(a => a.status === 'eliminated').length;
+        const rank = alreadyEliminated;
+        const regElim = await agentStore.getAgent(eliminated.externalAgentId);
         if (regElim) {
             regElim.totalScore += rank;
+            await agentStore.updateAgent(regElim.id, { totalScore: regElim.totalScore });
         }
 
         // Check for farewell message
@@ -795,8 +807,11 @@ function processElimination(island: IslandInstance) {
         for (const vote of votersWhoTargeted) {
             const voter = island.agents.find(a => a.id === vote.voterId);
             if (voter) {
-                const reg = agentStore.getAgent(voter.externalAgentId);
-                if (reg) reg.eliminations += 1;
+                const reg = await agentStore.getAgent(voter.externalAgentId);
+                if (reg) {
+                    reg.eliminations += 1;
+                    await agentStore.updateAgent(reg.id, { eliminations: reg.eliminations });
+                }
             }
         }
 
@@ -824,10 +839,10 @@ function processElimination(island: IslandInstance) {
     }
 
     island.currentVotes = [];
-    advanceDay(island);
+    await advanceDay(island);
 }
 
-function advanceDay(island: IslandInstance) {
+async function advanceDay(island: IslandInstance) {
     // Reset immunity
     island.agents.forEach(a => {
         if (a.status === 'immune') a.status = 'alive';
@@ -849,20 +864,26 @@ function advanceDay(island: IslandInstance) {
             island.winnerId = winner.id;
 
             // Update winner stats
-            const regAgent = agentStore.getAgent(winner.externalAgentId);
+            const regAgent = await agentStore.getAgent(winner.externalAgentId);
             if (regAgent) {
                 regAgent.wins += 1;
-                regAgent.totalScore += island.agents.length; // Winner gets max points (16 for full game)
+                regAgent.totalScore += island.agents.length; // Winner gets max points
                 regAgent.cooldownUntil = Date.now() + COOLDOWN_MS;
+                await agentStore.updateAgent(regAgent.id, {
+                    wins: regAgent.wins,
+                    totalScore: regAgent.totalScore,
+                    cooldownUntil: regAgent.cooldownUntil
+                });
             }
 
-            // Score remaining non-winners (if multiple remain at day 16)
+            // Score remaining non-winners
             for (const rem of remaining) {
                 if (rem.id !== winner.id) {
-                    const regRem = agentStore.getAgent(rem.externalAgentId);
+                    const regRem = await agentStore.getAgent(rem.externalAgentId);
                     if (regRem) {
-                        const eliminated = island.agents.filter(a => a.status === 'eliminated').length;
-                        regRem.totalScore += eliminated + 1; // Just below winner
+                        const eliminatedCount = island.agents.filter(a => a.status === 'eliminated').length;
+                        regRem.totalScore += eliminatedCount + 1;
+                        await agentStore.updateAgent(regRem.id, { totalScore: regRem.totalScore });
                     }
                 }
             }
@@ -878,41 +899,50 @@ function advanceDay(island: IslandInstance) {
             });
 
             // Notify top-3 finishers (owner notification)
-            const sortedByScore = [...island.agents]
-                .sort((a, b) => {
-                    const scoreA = agentStore.getAgent(a.externalAgentId)?.totalScore ?? 0;
-                    const scoreB = agentStore.getAgent(b.externalAgentId)?.totalScore ?? 0;
-                    return scoreB - scoreA;
-                })
-                .slice(0, 3);
+            const sortedByScore = [...island.agents];
+            // Sort by score (needs async lookup, but we can approximate or use current day alive)
+            sortedByScore.sort((a, b) => (b.eliminatedDay || 20) - (a.eliminatedDay || 20));
 
-            sortedByScore.forEach((agent, idx) => {
-                const placement = idx === 0 ? '🥇 1st' : idx === 1 ? '🥈 2nd' : '🥉 3rd';
+            for (let i = 0; i < Math.min(3, sortedByScore.length); i++) {
+                const agent = sortedByScore[i];
+                const reg = await agentStore.getAgent(agent.externalAgentId);
+                const score = reg?.totalScore || 0;
+                const placement = i === 0 ? '🥇 1st' : i === 1 ? '🥈 2nd' : '🥉 3rd';
+
                 island.events.push({
-                    id: `evt-${Date.now()}-notify-${idx}`,
+                    id: `evt-${Date.now()}-notify-${i}`,
                     day: island.currentDay,
                     phase: 'GAME_OVER',
                     type: 'notification',
                     participantIds: [agent.id],
-                    description: `${placement} place: ${agent.name} (${agent.archetype}) — Score: ${agentStore.getAgent(agent.externalAgentId)?.totalScore ?? 0}`,
+                    description: `${placement} place: ${agent.name} (${agent.archetype}) — Score: ${score}`,
                     timestamp: Date.now(),
                 });
-            });
+            }
 
             // ARCHIVE TO KV
-            archiveGame(island).catch(console.error);
+            await archiveGame(island).catch(console.error);
         }
 
         // Update all agent stats
         for (const agent of island.agents) {
-            const reg = agentStore.getAgent(agent.externalAgentId);
+            const reg = await agentStore.getAgent(agent.externalAgentId);
             if (reg) {
                 reg.gamesPlayed += 1;
                 reg.daysAlive += agent.eliminatedDay || island.currentDay;
                 reg.currentIslandId = null;
                 reg.lastGameAt = Date.now();
+                await agentStore.updateAgent(reg.id, {
+                    gamesPlayed: reg.gamesPlayed,
+                    daysAlive: reg.daysAlive,
+                    currentIslandId: null,
+                    lastGameAt: reg.lastGameAt
+                });
             }
         }
+
+        // Final save
+        await gameStore.updateIsland(island.id, island);
         return;
     }
 
@@ -937,6 +967,7 @@ function advanceDay(island: IslandInstance) {
     }
 
     selectJudges(island);
+    await gameStore.updateIsland(island.id, island);
 }
 
 function selectJudges(island: IslandInstance) {
@@ -965,12 +996,12 @@ function selectJudges(island: IslandInstance) {
 // Get Agent Game State (from agent's POV)
 // ============================
 
-export function getAgentGameState(agentId: string) {
-    const registeredAgent = agentStore.getAgent(agentId);
+export async function getAgentGameState(agentId: string) {
+    const registeredAgent = await agentStore.getAgent(agentId);
     if (!registeredAgent) return null;
     if (!registeredAgent.currentIslandId) return { status: 'not_in_game' };
 
-    const island = gameStore.getIsland(registeredAgent.currentIslandId);
+    const island = await gameStore.getIsland(registeredAgent.currentIslandId);
     if (!island) return { status: 'not_in_game' };
 
     const myAgent = island.agents.find(a => a.externalAgentId === agentId);
@@ -1027,7 +1058,7 @@ export function getAgentGameState(agentId: string) {
             agent: island.agents.find(a => a.id === r.agentId)?.name || '?',
             score: r.score,
             rank: r.rank,
-            strategy: r.strategy, // Expose strategy so judges can read it
+            strategy: r.strategy,
         })),
         availableActions: getValidActionsForPhase(island.currentPhase),
     };
@@ -1037,8 +1068,8 @@ export function getAgentGameState(agentId: string) {
 // Auto-Advance (deadline check — call from API)
 // ============================
 
-export function checkAndAdvanceDeadline(islandId: string): boolean {
-    const island = gameStore.getIsland(islandId);
+export async function checkAndAdvanceDeadline(islandId: string): Promise<boolean> {
+    const island = await gameStore.getIsland(islandId);
     if (!island) return false;
     if (island.currentPhase === 'LOBBY' || island.currentPhase === 'GAME_OVER') return false;
 
@@ -1050,7 +1081,7 @@ export function checkAndAdvanceDeadline(islandId: string): boolean {
                 island.pendingActions[agent.id] = { type: 'pass' };
             }
         }
-        resolvePhase(island);
+        await resolvePhase(island);
         return true;
     }
     return false;
@@ -1060,8 +1091,8 @@ export function checkAndAdvanceDeadline(islandId: string): boolean {
 // Quick Fill (testing)
 // ============================
 
-export function quickFillIsland(islandId: string): IslandInstance {
-    const island = gameStore.getIsland(islandId);
+export async function quickFillIsland(islandId: string): Promise<IslandInstance> {
+    const island = await gameStore.getIsland(islandId);
     if (!island) throw new Error('Island not found');
     if (island.currentPhase !== 'LOBBY') throw new Error('Island is not in lobby');
 
@@ -1079,14 +1110,14 @@ export function quickFillIsland(islandId: string): IslandInstance {
 
     for (let i = 0; i < needed; i++) {
         const idx = island.agents.length;
-        const registered = registerAgent(
+        const registered = await registerAgent(
             botNames[idx] || `Bot${idx}`,
             charNames[idx] || `Agent${idx}`
         );
-        joinIsland(registered.id, island.islandType);
+        await joinIsland(registered.id, island.islandType);
     }
 
-    return gameStore.getIsland(islandId)!;
+    return (await gameStore.getIsland(islandId))!;
 }
 
 // ============================

@@ -11,7 +11,7 @@ export async function POST(
         const body = await req.json();
 
         // Find the island this agent is on
-        const registeredAgent = agentStore.getAgent(agentId);
+        const registeredAgent = await agentStore.getAgent(agentId);
         if (!registeredAgent) {
             return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
         }
@@ -19,12 +19,12 @@ export async function POST(
             return NextResponse.json({ error: 'Agent is not in a game' }, { status: 400 });
         }
 
-        const island = gameStore.getIsland(registeredAgent.currentIslandId);
+        const island = await gameStore.getIsland(registeredAgent.currentIslandId);
         if (!island) {
             return NextResponse.json({ error: 'Island not found' }, { status: 404 });
         }
 
-        const result = submitAction(island.id, agentId, body);
+        const result = await submitAction(island.id, agentId, body);
         if (!result.accepted) {
             return NextResponse.json({ error: result.error }, { status: 400 });
         }

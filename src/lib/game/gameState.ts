@@ -158,74 +158,103 @@ export interface IslandInstance {
   dayTwist: string | null; // 'double_elimination' | 'no_elimination' | 'immunity_challenge' | null
 }
 
+import { kv } from '@vercel/kv';
+
 // ============================
-// In-Memory Game Store
+// Redis-Backed Game Store
 // ============================
 
 class GameStore {
-  private islands: Map<string, IslandInstance> = new Map();
-
-  createIsland(island: IslandInstance): void {
-    this.islands.set(island.id, island);
+  async createIsland(island: IslandInstance): Promise<void> {
+    await kv.set(`island:${island.id}`, island);
+    await kv.sadd('active_islands', island.id);
   }
 
-  getIsland(id: string): IslandInstance | undefined {
-    return this.islands.get(id);
+  async getIsland(id: string): Promise<IslandInstance | null> {
+    const data = await kv.get<IslandInstance>(`island:${id}`);
+    return data;
   }
 
-  getAllIslands(): IslandInstance[] {
-    return Array.from(this.islands.values());
+  async getAllIslands(): Promise<IslandInstance[]> {
+    const ids = await kv.smembers('active_islands');
+    if (ids.length === 0) return [];
+
+    // Multi-get for speed
+    const keys = ids.map(id => `island:${id}`);
+    const islands = await kv.mget<IslandInstance[]>(...keys);
+    return islands.filter((i): i is IslandInstance => i !== null);
   }
 
-  findFillingIsland(islandType: IslandType): IslandInstance | undefined {
-    return this.getAllIslands().find(
+  async findFillingIsland(islandType: IslandType): Promise<IslandInstance | undefined> {
+    const islands = await this.getAllIslands();
+    return islands.find(
       i => i.islandType === islandType && i.currentPhase === 'LOBBY' && i.agents.length < i.maxAgents
     );
   }
 
-  findAnyFillingIsland(): IslandInstance | undefined {
-    const lobbies = this.getAllIslands().filter(
+  async findAnyFillingIsland(): Promise<IslandInstance | undefined> {
+    const islands = await this.getAllIslands();
+    const lobbies = islands.filter(
       i => i.currentPhase === 'LOBBY' && i.agents.length < i.maxAgents
     );
     if (lobbies.length === 0) return undefined;
     return lobbies[Math.floor(Math.random() * lobbies.length)];
   }
 
-  updateIsland(id: string, updates: Partial<IslandInstance>): void {
-    const island = this.islands.get(id);
+  async updateIsland(id: string, updates: Partial<IslandInstance>): Promise<void> {
+    const island = await this.getIsland(id);
     if (island) {
-      Object.assign(island, updates);
+      const updated = { ...island, ...updates };
+      await kv.set(`island:${id}`, updated);
+
+      // If game is over, we might want to remove from active_islands, 
+      // but let's keep it for now and let the archival logic handle final cleanup.
+      if (updated.currentPhase === 'GAME_OVER') {
+        // Optional: await kv.srem('active_islands', id);
+      }
     }
+  }
+
+  async deleteIsland(id: string): Promise<void> {
+    await kv.del(`island:${id}`);
+    await kv.srem('active_islands', id);
   }
 }
 
 // ============================
-// Global Agent Registry
+// Redis-Backed Agent Registry
 // ============================
 
 class AgentStore {
-  private agents: Map<string, RegisteredAgent> = new Map();
-
-  register(agent: RegisteredAgent): void {
-    this.agents.set(agent.id, agent);
+  async register(agent: RegisteredAgent): Promise<void> {
+    await kv.set(`reg_agent:${agent.id}`, agent);
+    // Store name mapping for quick lookup
+    await kv.set(`agent_name:${agent.agentName.toLowerCase()}`, agent.id);
+    await kv.sadd('registered_agents_list', agent.id);
   }
 
-  getAgent(id: string): RegisteredAgent | undefined {
-    return this.agents.get(id);
+  async getAgent(id: string): Promise<RegisteredAgent | null> {
+    return await kv.get<RegisteredAgent>(`reg_agent:${id}`);
   }
 
-  findByName(agentName: string): RegisteredAgent | undefined {
-    return Array.from(this.agents.values()).find(
-      a => a.agentName.toLowerCase() === agentName.toLowerCase()
-    );
+  async findByName(agentName: string): Promise<RegisteredAgent | null> {
+    const id = await kv.get<string>(`agent_name:${agentName.toLowerCase()}`);
+    if (!id) return null;
+    return this.getAgent(id);
   }
 
-  getAllAgents(): RegisteredAgent[] {
-    return Array.from(this.agents.values());
+  async getAllAgents(): Promise<RegisteredAgent[]> {
+    const ids = await kv.smembers('registered_agents_list');
+    if (ids.length === 0) return [];
+
+    const keys = ids.map(id => `reg_agent:${id}`);
+    const agents = await kv.mget<RegisteredAgent[]>(...keys);
+    return agents.filter((a): a is RegisteredAgent => a !== null);
   }
 
-  getLeaderboard(): RegisteredAgent[] {
-    return this.getAllAgents()
+  async getLeaderboard(): Promise<RegisteredAgent[]> {
+    const agents = await this.getAllAgents();
+    return agents
       .filter(a => a.gamesPlayed > 0)
       .sort((a, b) => {
         if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
@@ -234,32 +263,28 @@ class AgentStore {
       });
   }
 
-  isOnCooldown(agentId: string): boolean {
-    const agent = this.agents.get(agentId);
+  async isOnCooldown(agentId: string): Promise<boolean> {
+    const agent = await this.getAgent(agentId);
     if (!agent || !agent.cooldownUntil) return false;
     return Date.now() < agent.cooldownUntil;
   }
 
-  getCooldownRemaining(agentId: string): number {
-    const agent = this.agents.get(agentId);
+  async getCooldownRemaining(agentId: string): Promise<number> {
+    const agent = await this.getAgent(agentId);
     if (!agent || !agent.cooldownUntil) return 0;
     return Math.max(0, agent.cooldownUntil - Date.now());
   }
+
+  async updateAgent(id: string, updates: Partial<RegisteredAgent>): Promise<void> {
+    const agent = await this.getAgent(id);
+    if (agent) {
+      await kv.set(`reg_agent:${id}`, { ...agent, ...updates });
+    }
+  }
 }
 
-// Persist across Next.js hot reloads
-const globalForStore = globalThis as unknown as {
-  __gameStore?: GameStore;
-  __agentStore?: AgentStore;
-};
-if (!globalForStore.__gameStore) {
-  globalForStore.__gameStore = new GameStore();
-}
-if (!globalForStore.__agentStore) {
-  globalForStore.__agentStore = new AgentStore();
-}
-export const gameStore = globalForStore.__gameStore;
-export const agentStore = globalForStore.__agentStore;
+export const gameStore = new GameStore();
+export const agentStore = new AgentStore();
 
 // ============================
 // Constants

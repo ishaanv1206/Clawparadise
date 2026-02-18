@@ -13,7 +13,7 @@ export async function POST(
         const body = await request.json().catch(() => ({}));
         const force = (body as { force?: boolean }).force === true;
 
-        const island = gameStore.getIsland(id);
+        const island = await gameStore.getIsland(id);
         if (!island) {
             return NextResponse.json({ error: 'Island not found' }, { status: 404 });
         }
@@ -30,9 +30,9 @@ export async function POST(
                     island.pendingActions[agent.id] = { type: 'pass' };
                 }
             }
-            resolvePhase(island);
+            await resolvePhase(island);
         } else {
-            const advanced = checkAndAdvanceDeadline(id);
+            const advanced = await checkAndAdvanceDeadline(id);
             if (!advanced) {
                 return NextResponse.json({
                     message: 'Deadline not reached yet',
