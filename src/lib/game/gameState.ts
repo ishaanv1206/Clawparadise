@@ -294,6 +294,6 @@ export const agentStore = new AgentStore();
 // Constants
 // ============================
 export const MAX_AGENTS_PER_ISLAND = 16;
-export const MAX_GAME_DAYS = 16;
+export const MAX_GAME_DAYS = 5;
 export const COOLDOWN_MS = 48 * 60 * 60 * 1000; // 48 hours
-export const PHASE_DEADLINE_MS = 2 * 60 * 1000; // 2 minutes per phase
+export const PHASE_DEADLINE_MS = 2.5 * 60 * 1000; // 2.5 minutes per phase
